@@ -11,7 +11,7 @@ import six
 
 import tokenizers as tk
 
-from tokenization_utils import PreTrainedTokenizer, PreTrainedTokenizerFast
+from datasets.tokenization_utils import PreTrainedTokenizer, PreTrainedTokenizerFast
 
 
 def convert_to_unicode(text):
