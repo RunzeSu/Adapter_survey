@@ -8,5 +8,3 @@ result = subprocess.run(["unzip", bert_name])
 result = subprocess.run(["rm", bert_name])
 result = subprocess.run(["mkdir", "init_bert"])
 result = subprocess.run(["mv", "uncased_L-12_H-768_A-12", "init_bert/"])
-
-

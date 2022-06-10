@@ -5,10 +5,8 @@
 
 
 | Model | Algorithm | Year | CheckIn Status | 
-
 |-------|---------|---------|---------|---------|
-
-|  MTDNN  | Multi-Task Deep Neural Networks for Natural Language Understanding | 2019 |   ✅   |
+|  MTDNN  | Multi-Task Deep Neural Networks for Natural Language Understanding | 2021 |   ✅   |
 
 
 #### Datasets

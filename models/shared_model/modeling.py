@@ -241,9 +241,9 @@ class BERTSelfAttention(nn.Module):
         return context_layer
     
     
-class BERTLukaszSelfAttention(nn.Module):
+class BERTEmSelfAttention(nn.Module):
     def __init__(self, config):
-        super(BERTLukaszSelfAttention, self).__init__()
+        super(BERTEmSelfAttention, self).__init__()
         if config.hidden_size % config.num_attention_heads != 0:
             raise ValueError(
                 "The hidden size (%d) is not a multiple of the number of attention "
@@ -344,15 +344,15 @@ class BERTAttention(nn.Module):
     def __init__(self, config, multi_params=None, houlsby=False):
         super(BERTAttention, self).__init__()
         
-        self.our_attn = config.our_attn
-        if config.our_attn:
-            self.self = BERTLukaszSelfAttention(config)
+        self.embert_attn = config.embert_attn
+        if config.embert_attn:
+            self.self = BERTEmSelfAttention(config)
         else:
             self.self = BERTSelfAttention(config, multi_params)
         self.output = BERTSelfOutput(config, multi_params, houlsby)
 
     def forward(self, input_tensor, attention_mask, i=0):
-        if self.our_attn:
+        if self.embert_attn:
             self_output = self.self(input_tensor, attention_mask, i)
         else:
             self_output = self.self(input_tensor, attention_mask)

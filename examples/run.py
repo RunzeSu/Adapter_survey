@@ -32,10 +32,10 @@ from sklearn.metrics import matthews_corrcoef
 import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
-from datasets.preprocess import *
-from datasets import tokenization
-from models.MTDNN.modeling import BertConfig, BertForSequenceClassification, BertForMultiTask
-from models.MTDNN.optimization import BERTAdam
+from preprocess.preprocess import *
+from preprocess import tokenization
+from models.shared_model.modeling import BertConfig, BertForSequenceClassification, BertForMultiTask
+from models.shared_model.optimization import BERTAdam
 
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s', 
                     datefmt = '%m/%d/%Y %H:%M:%S',

@@ -1,5 +1,7 @@
 {
-  "our_attn": true,
+  "hidden_size_aug": 204,
+  "mult": true,
+  "pals": False,
   "attention_probs_dropout_prob": 0.1,
   "hidden_act": "gelu",
   "hidden_dropout_prob": 0.1,
