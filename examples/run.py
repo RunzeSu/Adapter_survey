@@ -33,6 +33,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
+import sys, os
+sys.path.insert(1, '..')
 from preprocess.preprocess import *
 from preprocess import tokenization
 from models.shared_model.modeling import BertConfig, BertForSequenceClassification, BertForMultiTask, BERTLayerNorm
