@@ -30,13 +30,17 @@ import numpy as np
 from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import matthews_corrcoef
 import torch
+import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
+import sys, os
+sys.path.insert(1, '..')
 from preprocess.preprocess import *
 from preprocess import tokenization
-from models.shared_model.modeling import BertConfig, BertForSequenceClassification, BertForMultiTask
+from models.shared_model.modeling import BertConfig, BertForSequenceClassification, BertForMultiTask, BERTLayerNorm
 from models.shared_model.optimization import BERTAdam
-
+from adapters import AdapterController, AutoAdapterConfig
+from adapters import MetaAdapterController, AdapterLayersHyperNetController, AdapterLayersOneHyperNetController
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s', 
                     datefmt = '%m/%d/%Y %H:%M:%S',
                     level = logging.INFO)
@@ -89,6 +93,80 @@ def main():
     parser.add_argument("--multi",
                         default=False,
                         help="Whether to add adapter modules",
+                        action='store_true')
+    parser.add_argument("--hyperformer",
+                        default=False,
+                        help="Whether to add adapter modules",
+                        action='store_true')
+    parser.add_argument("--adapters",
+                        default=None,
+                        help="Defines a dictionary from adapters to the tasks.")
+    parser.add_argument("--task_embeddings",
+                        default=None,
+                        help="Defines a dictionary from tasks to the tasks embeddings.")
+    parser.add_argument("--adapter_config_name",
+                        default="meta-adapter",
+                        type=str,
+                        help="config name for the adapter layers, should be selected.")
+    parser.add_argument("--task_embedding_dim",
+                        default=None,
+                        type=int,
+                        help="task embedding dimensions.")
+    parser.add_argument("--add_layer_norm_before_adapter",
+                        default=False,
+                        help="whether to have layer-norm before adapter.",
+                        action='store_true')
+    parser.add_argument("--add_layer_norm_after_adapter",
+                        default=False,
+                        help="whether to have layer-norm after adapter.",
+                        action='store_true')
+    parser.add_argument("--hidden_dim",
+                        default=128,
+                        type=int,
+                        help="defines the default hidden dimension for adapter layers.")
+    parser.add_argument("--reduction_factor",
+                        default=16,
+                        type=int,
+                        help="defines the default reduction factor for adapter layers.")
+    parser.add_argument("--non_linearity",
+                        default="swish",
+                        type=str,
+                        help="Defines nonlinearity for adapter layers.")
+    parser.add_argument("--train_task_embeddings",
+                        default=False,
+                        help="If specified learns the tasks embeddings from given task seedings.",
+                        action='store_true')
+    parser.add_argument("--projected_task_embedding_dim",
+                        default=64,
+                        type=int,
+                        help="Defines the task embedding dimension after projection layer.")
+    parser.add_argument("--task_hidden_dim",
+                        default=128,
+                        type=int,
+                        help="defines the hidden dimension for task embedding projector.")
+    parser.add_argument("--conditional_layer_norm",
+                        default=False,
+                        help="Implements conditional layer norms modulated based on task embeddings.",
+                        action='store_true')
+    parser.add_argument("--train_adapters_blocks",
+                        default=False,
+                        help="If set, uses adapter blocks.",
+                        action='store_true')
+    parser.add_argument("--unique_hyper_net",
+                        default=False,
+                        help="If set, uses one hyper network to generates the adapter weights for all the layers.",
+                        action='store_true')
+    parser.add_argument("--efficient_unique_hyper_net",
+                        default=False,
+                        help="If set, uses one hyper network for all adapters in each layer.",
+                        action='store_true')
+    parser.add_argument("--unique_hyper_net_layer_norm",
+                        default=False,
+                        help="If set, applies a layer norm after computing the embeddings for the unique hyper-net.",
+                        action='store_true')
+    parser.add_argument("--unfreeze_layer_norms",
+                        default=False,
+                        help="unfreezes the layer norms.",
                         action='store_true')
     parser.add_argument("--do_train",
                         default=False,
@@ -247,8 +325,41 @@ def main():
     bert_config.num_tasks = num_tasks
     if args.h_aug is not 'n/a':
         bert_config.hidden_size_aug = int(args.h_aug)
-    model = BertForMultiTask(bert_config, [len(labels) for labels in label_list])
-    
+        
+    # Gets the adapter config and updates the specified parameters.
+    if args.hyperformer:
+        adapter_config = AutoAdapterConfig.get(args.adapter_config_name)
+        adapter_config.input_dim = bert_config.hidden_size
+        adapter_config.tasks = task_names
+        adapter_config.task_to_adapter = {task:adapter for task, adapter in zip(adapter_config.tasks, args.adapters)} if args.adapters is not None else None
+        # If this is a parametric task embedding this mapping makes sense, but in case we use any task embeddings,
+        # then, we do not need any mapping as we use the pretrained task embeddings.
+        adapter_config.task_to_embeddings = {task:embedding for task, embedding in zip(adapter_config.tasks, args.task_embeddings)}\
+             if (args.task_embeddings is not None) else None
+        extra_adapter_params = ("task_embedding_dim",
+                                "add_layer_norm_before_adapter",
+                                "add_layer_norm_after_adapter",
+                                "reduction_factor",
+                                "hidden_dim",
+                                "non_linearity",
+                                "train_task_embeddings",
+                                "projected_task_embedding_dim",
+                                "task_hidden_dim",
+                                "conditional_layer_norm",
+                                "train_adapters_blocks",
+                                "unique_hyper_net",
+                                "unique_hyper_net_layer_norm",
+                                "efficient_unique_hyper_net")
+        for p in extra_adapter_params:
+            if hasattr(args, p) and hasattr(adapter_config, p):
+                setattr(adapter_config, p, getattr(args, p))
+            else:
+                logger.warning(f"({adapter_config.__class__.__name__}) doesn't have a `{p}` attribute")
+        adapter_config.device = device
+    else:
+        adapter_config = None
+     
+    model = BertForMultiTask(bert_config, [len(labels) for labels in label_list], adapter_config = adapter_config)
     
     if args.init_checkpoint is not None:
         if args.multi:
@@ -268,16 +379,48 @@ def main():
                     else:
                         update[n] = model_dict[n]
             model.bert.load_state_dict(update)
-            
+        elif args.hyperformer:
+            partial = torch.load(args.init_checkpoint, map_location='cpu')
+            model_dict = model.bert.state_dict()
+            update = {}
+            for n, p in model_dict.items():
+                if 'adapter' in n:
+                    update[n] = p
+                else:
+                    update[n] = partial[n]
+            model.bert.load_state_dict(update)    
         else:
             model.bert.load_state_dict(torch.load(args.init_checkpoint, map_location='cpu'))
     
     if args.freeze:
         for n, p in model.bert.named_parameters():
-            if 'aug' in n or 'classifier' in n or 'mult' in n or 'gamma' in n or 'beta' in n:
+            if 'aug' in n or 'classifier' in n or 'mult' in n or 'gamma' in n or 'beta' in n or "adapater" in n:
                 continue
             p.requires_grad = False
 
+    if args.hyperformer and bert_config.train_adapters:
+        for name, sub_module in model.named_modules():
+            if isinstance(sub_module, (MetaAdapterController, AdapterController)):
+                for param_name, param in sub_module.named_parameters():
+                    param.requires_grad = True
+        if args.adapter_config_name == "meta-adapter":
+            for param in model.task_embedding_controller.parameters():
+                param.requires_grad = True
+        if args.unique_hyper_net:
+            for name, sub_module in model.named_modules():
+                if isinstance(sub_module, (AdapterLayersHyperNetController, AdapterController)):
+                    for param_name, param in sub_module.named_parameters():
+                        param.requires_grad = True
+        if args.efficient_unique_hyper_net:
+            for name, sub_module in model.named_modules():
+                if isinstance(sub_module, (AdapterLayersOneHyperNetController)):
+                    for param_name, param in sub_module.named_parameters():
+                        param.requires_grad = True                       
+        if args.unfreeze_layer_norms:
+            for name, sub_module in model.named_modules():
+                if isinstance(sub_module, BERTLayerNorm):
+                    for param_name, param in sub_module.named_parameters():
+                        param.requires_grad = True
     
     if args.optim == 'normal':
         no_decay = ['bias', 'gamma', 'beta']
@@ -305,7 +448,7 @@ def main():
                 {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay) and any(nd in n for nd in base)], 'weight_decay_rate': 0.0}
                 ]
         optimizer_mult = BERTAdam(optimizer_parameters_mult,
-                             lr=3e-4,
+                             lr=args.learning_rate,
                              warmup=args.warmup_proportion,
                              t_total=total_tr)
     model.to(device)
@@ -365,9 +508,13 @@ def main():
         logger.info("  Num param = {}".format(total_params))
         loaders = [cycle(it) for it in loaders]
         model.train()
-        best_score = 0.
+        best_score = 0.       
+        data_size ={'cola':6680, 'mrpc':2865, 'mnli':306798, 'rte':1945, 'sts':4491, 'sst':52616, 'qqp':284257, 'qnli':84715}
+        probs = []
+        for task in task_names:
+            probs.append(data_size[task])
         if args.sample == 'sqrt' or args.sample == 'prop':
-            probs = [6680, 2865, 306798, 1945, 4491, 52616, 284257, 84715]
+#             probs = [6680, 2865, 306798, 1945, 4491, 52616, 284257, 84715]
             if args.sample == 'prop':
                 alpha = 1.
             if args.sample == 'sqrt':
@@ -379,7 +526,7 @@ def main():
         epoch = 0
         for _ in trange(int(args.num_train_epochs), desc="Epoch"):
             if args.sample == 'anneal':
-                probs = [6680, 2865, 306798, 1945, 4491, 52616, 284257, 84715]
+#                 probs = [6680, 2865, 306798, 1945, 4491, 52616, 284257, 84715]
                 alpha = 1. - 0.8 * epoch / (args.num_train_epochs - 1)
                 probs = [p**alpha for p in probs]
                 tot = sum(probs)
@@ -390,7 +537,7 @@ def main():
             for step in range(steps_per_epoch):
                 if args.sample != 'rr':
                     if step % args.gradient_accumulation_steps == 0:
-                        task_id = np.random.choice(8, p=probs)
+                        task_id = np.random.choice(len(probs), p=probs)
                 else:
                     task_id = task_id % num_tasks
                 batch = next(loaders[task_id])
