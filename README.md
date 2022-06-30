@@ -16,6 +16,12 @@
 
 |  Embert  | Multitask Learning Using BERT with Task-Embedded Attention | 2021 |   ✅   |
 
+|  Hyperformer  | Parameter-efficient Multi-task Fine-tuning for Transformers via Shared Hypernetworks | 2021 |   ✅   |
+
+|  conditional Adapter   | Conditionally Adaptive Multi-task Learning: Improving Transfer Learning in NLP Using Fewer Parameters & Less Data | 2021 |   ✅   |
+
+
+
 #### Datasets
 
-GLUE
+We applied The General Language Understanding Evaluation (GLUE) benchmark as our evaluation dataset. For more details, please refer to the [GLUE Official Website] (https://gluebenchmark.com/)
