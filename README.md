@@ -7,7 +7,7 @@ In this github we summarized the most state-of-the-art adpaters architectures fr
 
 | Model | Algorithm | Year | CheckIn Status | 
 
-|-------|---------|---------|---------|---------|
+
 
 |  MTDNN  | Multi-Task Deep Neural Networks for Natural Language Understanding | 2019 |   ✅   |
 
@@ -19,12 +19,32 @@ In this github we summarized the most state-of-the-art adpaters architectures fr
 
 |  Hyperformer  | Parameter-efficient Multi-task Fine-tuning for Transformers via Shared Hypernetworks | 2021 |   ✅   |
 
-|  conditional Adapter   | Conditionally Adaptive Multi-task Learning: Improving Transfer Learning in NLP Using Fewer Parameters & Less Data | 2021 |   ✅   |
+|  Conditional Adapter   | Conditionally Adaptive Multi-task Learning: Improving Transfer Learning in NLP Using Fewer Parameters & Less Data | 2021 |   ✅   |
 
 
 
-#### Datasets
+### Datasets
 
 We applied The General Language Understanding Evaluation (GLUE) benchmark as our evaluation dataset. For more details, please refer to the GLUE Official Website:
 
 https://gluebenchmark.com/
+
+The data can also be downloaded automatically by running:
+
+```
+python data/download_glue_data.py
+```
+
+### How to implement the models
+
+##### MTDNN
+
+#### BERT and PALs
+
+#### Adapter
+
+#### Embert
+
+#### Hyperformer
+
+#### Conditional Adapter 
