@@ -96,7 +96,7 @@ def main():
                         action='store_true')
     parser.add_argument("--hyperformer",
                         default=False,
-                        help="Whether to add adapter modules",
+                        help="Whether to add hyperformer adapter modules",
                         action='store_true')
     parser.add_argument("--adapters",
                         default=None,
@@ -281,7 +281,8 @@ def main():
         raise ValueError(
             "Cannot use sequence length {} because the BERT model was only trained up to sequence length {}".format(
             args.max_seq_length, bert_config.max_position_embeddings))
-
+    bert_config.max_seq_length = args.max_seq_length
+    
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
         raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
     os.makedirs(args.output_dir, exist_ok=True)
@@ -358,6 +359,7 @@ def main():
         adapter_config.device = device
     else:
         adapter_config = None
+        
      
     model = BertForMultiTask(bert_config, [len(labels) for labels in label_list], adapter_config = adapter_config)
     
@@ -388,13 +390,27 @@ def main():
                     update[n] = p
                 else:
                     update[n] = partial[n]
-            model.bert.load_state_dict(update)    
+            model.bert.load_state_dict(update) 
+        elif bert_config.camtl:
+            partial = torch.load(args.init_checkpoint, map_location='cpu')
+            model_dict = model.bert.state_dict()
+            update = {}
+            for n, p in model_dict.items():
+                if 'gb_weights' in n or 'task_' in n or 'adapter' in n or 'random_weight_matrix' in n or 'new_' in n:
+                    update[n] = p
+                elif 'output.LayerNorm.weight' in n:
+                    update[n] = partial[n.replace('weight', 'gamma')]
+                elif 'output.LayerNorm.bias' in n:
+                    update[n] = partial[n.replace('bias', 'beta')]
+                else:
+                    update[n] = partial[n]
+            model.bert.load_state_dict(update) 
         else:
             model.bert.load_state_dict(torch.load(args.init_checkpoint, map_location='cpu'))
     
     if args.freeze:
         for n, p in model.bert.named_parameters():
-            if 'aug' in n or 'classifier' in n or 'mult' in n or 'gamma' in n or 'beta' in n or "adapater" in n:
+            if 'aug' in n or 'classifier' in n or 'mult' in n or 'gamma' in n or 'beta' in n or "adapter" in n or 'random_weight_matrix' in n or 'gb_weights' in n or 'task_' in n or 'new_' in n or 'output.LayerNorm.weight' in n or 'output.LayerNorm.bias' in n:
                 continue
             p.requires_grad = False
 
