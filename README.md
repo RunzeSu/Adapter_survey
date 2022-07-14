@@ -5,21 +5,21 @@ In this github we summarized the most state-of-the-art adpaters architectures fr
 ## Implemented Algorithms
 
 
-| Model | Algorithm | Year | CheckIn Status | 
+| Model | Algorithm | Year |
 
 
 
-|  MTDNN  | Multi-Task Deep Neural Networks for Natural Language Understanding | 2019 |   ✅   |
+|  MTDNN  | Multi-Task Deep Neural Networks for Natural Language Understanding | 2019 
 
-|  BERT and PALs  | BERT and PALs: Projected Attention Layers for Efficient Adaptation in Multi-Task Learning | 2019 |   ✅   |
+|  BERT and PALs  | BERT and PALs: Projected Attention Layers for Efficient Adaptation in Multi-Task Learning | 2019 
 
-|  Adapter  | Parameter-efficient transfer learning for nlp | 2019 |   ✅   |
+|  Adapter  | Parameter-efficient transfer learning for nlp | 2019 
 
-|  Embert  | Multitask Learning Using BERT with Task-Embedded Attention | 2021 |   ✅   |
+|  Embert  | Multitask Learning Using BERT with Task-Embedded Attention | 2021 
 
-|  Hyperformer  | Parameter-efficient Multi-task Fine-tuning for Transformers via Shared Hypernetworks | 2021 |   ✅   |
+|  Hyperformer  | Parameter-efficient Multi-task Fine-tuning for Transformers via Shared Hypernetworks | 2021 
 
-|  Conditional Adapter   | Conditionally Adaptive Multi-task Learning: Improving Transfer Learning in NLP Using Fewer Parameters & Less Data | 2021 |   ✅   |
+|  Conditional Adapter   | Conditionally Adaptive Multi-task Learning: Improving Transfer Learning in NLP Using Fewer Parameters & Less Data | 2021 
 
 
 
