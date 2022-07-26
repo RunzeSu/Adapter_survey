@@ -182,7 +182,8 @@ class AdapterLayersOneHyperNetController(nn.Module):
                                                 self.task_embedding_dim).to(self.device)
         # This is 2 types of adapters for feed-forward, and self-attention.
         self.adapters_block_type = nn.Embedding(2, self.task_embedding_dim).to(self.device)
-
+#         print('ha2')
+#         print(config.task_embedding_dim)
         config.task_embedding_dim = self.task_embedding_dim * 3
         self.task_hypernet = TaskHyperNet(config)
         config.task_embedding_dim = self.task_embedding_dim
@@ -212,23 +213,30 @@ class AdapterLayersOneHyperNetController(nn.Module):
         returns the final joint embedding."""
         layer_id_tensor = torch.tensor([layer_id], dtype=torch.long, device=self.device)
         layer_embedding = self.layer_id_embeddings(layer_id_tensor)
+#         print('ha3')
+#         print(layer_embedding.shape)
         type_id_tensor = torch.tensor([block_type], dtype=torch.long, device=self.device)
         type_embedding = self.adapters_block_type(type_id_tensor)
         layer_embedding = layer_embedding.view(-1)
         type_embedding = type_embedding.view(-1)
         embeddings = torch.cat([task_embedding.view(1, -1), layer_embedding.view(1, -1), type_embedding.view(1, -1)],
                                axis=0)
+#         print(embeddings.shape)
         embeddings = self.task_hypernet(embeddings.view(-1))
+        
+#         print(embeddings.shape)
         if self.unique_hyper_net_layer_norm:
             embeddings = self.LayerNorm(embeddings)
+#         print(embeddings.shape)
         return embeddings
 
     def forward(self, task_embedding, layer_id):
         feed_forward_embeddings = self.get_embedding(task_embedding, layer_id, 0)
         self_attention_embeddings = self.get_embedding(task_embedding, layer_id, 1)
 #         print('ha')
+#         print(self.task_embedding_dim)
 #         print(feed_forward_embeddings.shape, self_attention_embeddings.shape)
-        # Generates the adapters weights in feed-forward.
+#         Generates the adapters weights in feed-forward.
         feed_forward_down = self.down_sampler_hyper_net(feed_forward_embeddings)
         feed_forward_up = self.up_sampler_hyper_net(feed_forward_embeddings)
         

@@ -202,10 +202,6 @@ class MetaLayersAdapterController(nn.Module):
 
     def call_adapter(self, inputs, adapter_weights):
         """Computes the output of the adapter layers."""
-#         print("hey")
-#         print(inputs.shape)
-#         print(adapter_weights.down.weight.shape)
-#         print(adapter_weights.down.bias.shape)
         down = F.linear(inputs, weight=adapter_weights.down.weight,
                         bias=adapter_weights.down.bias)
         middle = get_activation(self.activation_type)(down)
