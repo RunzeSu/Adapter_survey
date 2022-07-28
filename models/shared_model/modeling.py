@@ -76,6 +76,7 @@ class BertConfig(object):
                 train_adapters=False,
                 embert_attn=False,
                 camtl=False,
+                camtl_task_embedding_dim=768,
                 max_seq_length=128,
                 layer_norm_eps=1e-12,
                 chunk_size_feed_forward=0,
@@ -130,6 +131,7 @@ class BertConfig(object):
         self.train_adapters = train_adapters
         self.embert_attn = embert_attn
         self.camtl = camtl
+        self.camtl_task_embedding_dim = camtl_task_embedding_dim
         self.layer_norm_eps = layer_norm_eps # layer_norm_eps=1e-12, 
         self.chunk_size_feed_forward = chunk_size_feed_forward
         self.is_decoder = is_decoder
@@ -376,6 +378,7 @@ class BERTSelfOutput(nn.Module):
         self.LayerNorm = BERTLayerNorm(config, multi_params)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.houlsby = houlsby
+        self.num_tasks = config.num_tasks
 
     def forward(self, hidden_states, input_tensor, attention_mask=None, i=0):
         hidden_states = self.dense(hidden_states)
@@ -419,7 +422,7 @@ class BERTPals(nn.Module):
 
     def forward(self, hidden_states, attention_mask=None):
         hidden_states_aug = self.aug_dense(hidden_states)
-        hidden_states_aug = self.attn(hidden_states_aug, attention_mask) 
+        hidden_states_aug = self.attn(hidden_states_aug, attention_mask)
         hidden_states = self.aug_dense2(hidden_states_aug)
         hidden_states = self.hidden_act_fn(hidden_states)
         return hidden_states
@@ -618,7 +621,7 @@ class BERTEncoder(nn.Module):
         if self.config.camtl:
             task_embedding = self.task_transformation(task_embedding)
         all_encoder_layers = []        
-        for i, layer_module in enumerate(self.layer):
+        for layer_module in self.layer:
             adapters = None
             if self.train_adapters and (self.unique_hyper_net or self.efficient_unique_hyper_net):
                 adapters = self.adapter_layers_hyper_net(task_embedding, i)
@@ -688,8 +691,11 @@ class MyBertSelfAttention9(nn.Module):
             "Block decomposed attention will only work if this condition is met."
         self.num_blocks = config.hidden_size//self.max_seq_length
         self.cond_block_diag_attn = CBDA(
-            config.hidden_size, math.ceil(self.max_seq_length/self.num_blocks), self.num_blocks
+            config.camtl_task_embedding_dim, math.ceil(self.max_seq_length/self.num_blocks), self.num_blocks
         )  # d x L/N
+#         self.cond_block_diag_attn = CBDA(
+#             config.hidden_size, math.ceil(self.max_seq_length/self.num_blocks), self.num_blocks
+#         )  # d x L/N
 
         self.random_weight_matrix = nn.Parameter(
             torch.zeros(
@@ -780,7 +786,8 @@ class MyBertSelfOutput9(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-        self.LayerNorm = ConditionalLayerNorm(config.hidden_size, config.hidden_size, eps=config.layer_norm_eps)
+        self.LayerNorm = ConditionalLayerNorm(config.hidden_size, config.camtl_task_embedding_dim, eps=config.layer_norm_eps)
+#         self.LayerNorm = ConditionalLayerNorm(config.hidden_size, config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
     def forward(self, hidden_states, input_tensor, task_embedding, task_id):
@@ -794,7 +801,8 @@ class MyBertOutput9(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.dense = nn.Linear(config.intermediate_size, config.hidden_size)
-        self.LayerNorm = ConditionalLayerNorm(config.hidden_size, config.hidden_size, eps=config.layer_norm_eps)
+        self.LayerNorm = ConditionalLayerNorm(config.hidden_size, config.camtl_task_embedding_dim, eps=config.layer_norm_eps)
+#         self.LayerNorm = ConditionalLayerNorm(config.hidden_size, config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
     def forward(self, hidden_states, input_tensor, task_embedding, task_id):
@@ -847,7 +855,8 @@ class BertAdapter9(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.bottleneck = ConditionalBottleNeck(config)
-        self.condlayernorm = ConditionalLayerNorm(config.hidden_size, config.hidden_size, eps=config.layer_norm_eps)
+        self.condlayernorm = ConditionalLayerNorm(config.hidden_size, config.camtl_task_embedding_dim, eps=config.layer_norm_eps)
+#         self.condlayernorm = ConditionalLayerNorm(config.hidden_size, config.hidden_size, eps=config.layer_norm_eps)
 
     def forward(self, bert_layer_input, hidden_states, task_embedding, task_id):
         hidden_states = self.bottleneck(task_embedding, hidden_states)
@@ -973,7 +982,8 @@ class MyBertEncoder9(nn.Module):
         super().__init__()
 #         self.output_attentions = config.output_attentions
 #         self.output_hidden_states = config.output_hidden_states
-        self.task_transformation = nn.Linear(config.hidden_size, config.hidden_size)
+        self.task_transformation = nn.Linear(config.camtl_task_embedding_dim, config.camtl_task_embedding_dim)
+#         self.task_transformation = nn.Linear(config.hidden_size, config.hidden_size)
         num_bert_layers = config.num_hidden_layers//2
         num_mybert_layers = config.num_hidden_layers//2-1
         assert num_bert_layers+num_mybert_layers+1 == config.num_hidden_layers
@@ -996,6 +1006,7 @@ class MyBertEncoder9(nn.Module):
         all_hidden_states = ()
         all_attentions = ()
         task_embedding = self.task_transformation(task_embedding)
+        
         for i, layer_module in enumerate(self.layer):
 #             if self.output_hidden_states:
 #                 all_hidden_states = all_hidden_states + (hidden_states,)
@@ -1052,11 +1063,15 @@ class BertModel(nn.Module):
         self.adapter_config = adapter_config
         self.config = config           
         self.embeddings = BERTEmbeddings(config)
-        if config.camtl:    
-            self.task_type_embeddings = nn.Embedding(config.num_tasks, config.hidden_size)
+        if config.camtl:            
+            self.task_type_embeddings = nn.Embedding(config.num_tasks, config.camtl_task_embedding_dim)
+#             self.task_type_embeddings = nn.Embedding(config.num_tasks, config.hidden_size)
             self.conditional_alignment = FiLM(
-            config.hidden_size, config.hidden_size
+            config.camtl_task_embedding_dim, config.hidden_size
         )  # FiLM5
+#             self.conditional_alignment = FiLM(
+#             config.hidden_size, config.hidden_size
+#         )  # FiLM5
             self.encoder = MyBertEncoder9(config)
         else:
             self.encoder = BERTEncoder(config, self.adapter_config)

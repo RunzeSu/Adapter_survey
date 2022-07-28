@@ -94,6 +94,10 @@ def main():
                         default=False,
                         help="Whether to add adapter modules",
                         action='store_true')
+    parser.add_argument("--camtl_task_embedding_dim",
+                        default=768,
+                        type=int,
+                        help="task embedding dimensions for camtl.")
     parser.add_argument("--hyperformer",
                         default=False,
                         help="Whether to add hyperformer adapter modules",
@@ -326,7 +330,8 @@ def main():
     bert_config.num_tasks = num_tasks
     if args.h_aug is not 'n/a':
         bert_config.hidden_size_aug = int(args.h_aug)
-        
+    if bert_config.camtl:
+        bert_config.camtl_task_embedding_dim = args.camtl_task_embedding_dim
     # Gets the adapter config and updates the specified parameters.
     if args.hyperformer:
         adapter_config = AutoAdapterConfig.get(args.adapter_config_name)
@@ -559,7 +564,7 @@ def main():
                 batch = next(loaders[task_id])
                 batch = tuple(t.to(device) for t in batch)
                 input_ids, input_mask, segment_ids, label_ids = batch
-                print(input_ids, input_mask, segment_ids, label_ids, task_names[task_id], label_ids)
+#                 print(input_ids, input_mask, segment_ids, label_ids, task_names[task_id], label_ids)
                 loss, _ = model(input_ids, segment_ids, input_mask, task_id, task_names[task_id], label_ids)
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.

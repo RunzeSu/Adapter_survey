@@ -152,8 +152,10 @@ class ConditionalBottleNeck(nn.Module):
     """Down projection and up projection with FiLM layers within Transformer layer."""
     def __init__(self, config):
         super(ConditionalBottleNeck, self).__init__()
-        self.emb_transf = nn.Linear(config.hidden_size, config.hidden_size)
-        self.hidden_modulation = FiLM(config.hidden_size, config.hidden_size)
+        self.emb_transf = nn.Linear(config.camtl_task_embedding_dim, config.camtl_task_embedding_dim)
+#         self.emb_transf = nn.Linear(config.hidden_size, config.hidden_size)
+        self.hidden_modulation = FiLM(config.camtl_task_embedding_dim, config.hidden_size)
+#         self.hidden_modulation = FiLM(config.hidden_size, config.hidden_size)
         self.down_proj_layer = nn.Linear(config.hidden_size, config.hidden_size//3)
         self.up_proj_layer = nn.Linear(config.hidden_size//3, config.hidden_size)
 
